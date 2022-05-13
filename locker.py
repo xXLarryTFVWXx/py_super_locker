@@ -58,8 +58,9 @@ def unlock(username, password, locker_mode=0): # 0 = file, 1 = directory
     fernet_object = cryptography.fernet.Fernet(b64_encoded_password)
     encrypted_password = fernet_object.encrypt(password.encode())
     encrypted_uname = fernet_object.encrypt(username.encode()).decode()
+    testing_file = f"result.txt:{encrypted_uname}"
     try:
-        with open(f"result.txt:{encrypted_uname}", "rb") as f:
+        with open(testing_file+":$DATA", "rb") as f:
             test_data = f.read()
             fernet_object.decrypt(test_data)
             print(test_data)
@@ -69,7 +70,6 @@ def unlock(username, password, locker_mode=0): # 0 = file, 1 = directory
         raise SystemExit(f"{err.args=}")
     if not os.path.isfile("result.txt"):
         raise SystemExit("Unable to open File/Folder.")
-    testing_file = f"result.txt:{encrypted_uname}"
     with open("result.txt", "rb") as f:
         if f.read() == "1":
             with open(f"{testing_file}:$DATA", "rb") as f:
