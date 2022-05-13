@@ -1,9 +1,12 @@
 import os, sys, shutil, base64, hashlib, cryptography, zipfile
+from zlib import compress
 
 from cryptography import fernet
 
 if not sys.platform == "win32":
     raise SystemExit("This program is only for Windows.")
+
+
 
 def lock(source, username, password, locker_mode=0):
     """
@@ -11,21 +14,23 @@ def lock(source, username, password, locker_mode=0):
         0: file
         1: directory
     """
+    base_password = hashlib.sha256(password.encode()).digest()
+    b64_encoded_password = base64.b64encode(base_password)
+    fernet_object = cryptography.fernet.Fernet(b64_encoded_password)
+    encrypted_password = fernet_object.encrypt(password.encode())
+    encrypted_uname = fernet_object.encrypt(username.encode()).decode()
     if locker_mode == 0:
         if not os.path.isfile(source):
             raise SystemExit("Source is not a file.")
         else:
             with open(source, "rb") as f:
                 data = f.read()
-            fernet_object = cryptography.fernet.Fernet(f"{base64.urlsafe_b64encode(hashlib.sha256(password.encode()).hexdigest().encode())}".encode())
-            encrypted_password = fernet_object.encrypt(password.encode())
             encrypted_data = fernet_object.encrypt(data)
-            encrypted_uname = base64.urlsafe_b64encode(fernet_object.encrypt(username.encode()))
             with open("result.txt", "w") as dummy:
                 dummy.write("1")
             with open(f"result.txt:{encrypted_uname}", "wb") as f:
                 f.write(encrypted_password)
-            with open(f"result.txt:{encrypted_uname}:F", "wb") as f:
+            with open(f"result.txt:{encrypted_uname}_F", "wb") as f:
                 f.write(encrypted_data)
             os.remove(source)
     elif locker_mode == 1:
@@ -38,38 +43,39 @@ def lock(source, username, password, locker_mode=0):
                         z.write(os.path.join(root, file))
             with open("result.zip", "rb") as f:
                 data = f.read()
-            fernet_object = cryptography.fernet.Fernet(base64.urlsafe_b64encode(hashlib.sha256(password.encode()).hexdigest()))
-            encrypted_password = fernet_object.encrypt(password.encode())
-            encrypted_data = fernet_object.encrypt(data)
-            encrypted_uname = base64.urlsafe_b64encode(fernet_object.encrypt(username.encode()))
             with open("result.txt", "w") as dummy:
                 dummy.write("1")
             with open(f"result.txt:{encrypted_uname}", "wb") as f:
                 f.write(encrypted_password)
-            with open(f"result.txt:{encrypted_uname}:D", "wb") as f:
+            with open(f"result.txt:{encrypted_uname}_D", "wb") as f:
                 f.write(encrypted_data)
             shutil.rmtree(source)
             os.remove("result.zip")
 
 def unlock(username, password, locker_mode=0): # 0 = file, 1 = directory
-    fernet_object = cryptography.fernet.Fernet(f"{base64.urlsafe_b64encode(hashlib.sha256(password.encode()).hexdigest())}".encode())
-    encrypted_uname = base64.urlsafe_b64encode(fernet_object.encrypt(username.encode()))
+    base_password = hashlib.sha256(password.encode()).digest()
+    b64_encoded_password = base64.b64encode(base_password)
+    fernet_object = cryptography.fernet.Fernet(b64_encoded_password)
+    encrypted_password = fernet_object.encrypt(password.encode())
+    encrypted_uname = fernet_object.encrypt(username.encode()).decode()
     try:
         with open(f"result.txt:{encrypted_uname}", "rb") as f:
             test_data = f.read()
             fernet_object.decrypt(test_data)
-    except FileNotFoundError:
-        raise SystemExit("unable to open file/folder.")
-    except cryptography.fernet.InvalidToken:
-        raise SystemExit("Unable to open file/folder.")
+            print(test_data)
+    except FileNotFoundError as err:
+        print(f"{err.args=}")
+    except cryptography.fernet.InvalidToken as err:
+        raise SystemExit(f"{err.args=}")
     if not os.path.isfile("result.txt"):
-        raise SystemExit("Unable to open file/folder.")
-    with open("result.txt", "r") as f:
+        raise SystemExit("Unable to open File/Folder.")
+    testing_file = f"result.txt:{encrypted_uname}"
+    with open("result.txt", "rb") as f:
         if f.read() == "1":
-            with open(f"result.txt:{encrypted_uname}", "rb") as f:
+            with open(f"{testing_file}:$DATA", "rb") as f:
                 encrypted_password = f.read()
     if fernet_object.decrypt(encrypted_password) == password.encode():
-        with open(f"result.txt:{encrypted_uname}:F", "rb") as f:
+        with open(f"{testing_file}_F:$DATA", "rb") as f:
             encrypted_data = f.read()
             #decrypt data
             decrypted_data = fernet_object.decrypt(encrypted_data)
